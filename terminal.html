@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terminal</title>
+
+<style>
+html, body {
+margin: 0; padding: 0;
+background-color: #000; color: #33FF33;
+font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+font-size: 16px;
+overflow: hidden;
+width: 100%;
+height: 100%;
+}
+body {
+display: flex;
+align-items: center;
+justify-content: center;
+width: 100vw;
+height: 100vh;
+}
+#terminal-frame {
+width: 99%;
+height: 98%;
+box-sizing: border-box;
+border: 1px solid #33FF33;
+display: flex;
+flex-direction: column;
+}
+#tabs-container {
+display: flex;
+background-color: #0a0a0a;
+border-bottom: 1px solid #33FF33;
+flex-shrink: 0;
+}
+.tab {
+padding: 8px 15px;
+cursor: pointer;
+border-right: 1px solid #33FF33;
+position: relative;
+display: flex;
+align-items: center;
+gap: 8px;
+}
+.tab:hover {
+background-color: #1a1a1a;
+}
+.tab.active {
+background-color: #111;
+color: #55FF55;
+font-weight: bold;
+}
+.tab-close {
+font-weight: normal;
+padding: 0 4px;
+border-radius: 3px;
+}
+.tab-close:hover {
+background-color: #FF3333;
+color: #000;
+}
+.new-tab-button {
+padding: 8px 15px;
+cursor: pointer;
+font-weight: bold;
+}
+#tabs-container .tab:last-of-type {
+margin-right: auto;
+}
+.new-tab-button:hover {
+background-color: #33FF33;
+color: #000;
+}
+#terminal-windows-container {
+flex-grow: 1;
+position: relative;
+overflow: hidden;
+}
+.terminal {
+padding: 15px; white-space: pre-wrap; word-wrap: break-word;
+height: 100%; width: 100%;
+box-sizing: border-box; overflow-y: auto;
+cursor: text; outline: none;
+position: absolute;
+top: 0; left: 0;
+}
+.prompt-line { display: flex; white-space: pre; }
+.cursor {
+background-color: #33FF33; display: inline-block;
+width: 9.6px; height: 19px;
+animation: blink 1s step-end infinite;
+margin-left: 1px;
+}
+@keyframes blink { 50% { background-color: transparent; } }
+#file-list {
+display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+gap: 5px 15px; padding-left: 20px;
+}
+.folder {
+color: #00aaff;
+font-weight: bold;
+}
+.terminal-video {
+max-width: 80%;
+max-height: 70%;
+display: block;
+margin: 15px 0;
+border: 2px solid #33FF33;
+outline: none;
+}
+#tab-group {
+display: flex;
+flex-grow: 1;
+}
+</style>
+</head>
+<body>
+<div id="terminal-frame">
+<div id="tabs-container">
+<div id="tab-group"></div>
+</div>
+<div id="terminal-windows-container"></div>
+</div>
+<audio id="audio-player"></audio>
+<script>
+const terminalFrame = document.getElementById('terminal-frame');
+const tabsContainer = document.getElementById('tabs-container');
+const terminalWindowsContainer = document.getElementById('terminal-windows-container');
+const audioPlayer = document.getElementById('audio-player');
+let tabs = [];
+let activeTabId = null;
+let nextTabId = 1;
+const MAX_TABS = 5;
+let audioCtx;
+let username = '';
+let isAwaitingUsername = true;
+const delay = ms => new Promise(res => setTimeout(res, ms));
+const fileSystem = {
+'type': 'folder',
+'content': {
+'games': {
+'type': 'folder',
+'content': {
+'100laps.html': { type: 'file' },
+'8ballpool.html': { type: 'file' },
+'adventure.html': { type: 'file' },
+'ameliax.html': { type: 'file' },
+'blackjack.html': { type: 'file' },
+'championship.html': { type: 'file' },
+'citybuilder.html': { type: 'file' },
+'ludo.html': { type: 'file' },
+'minigolf.html': { type: 'file' },
+'shithead.html': { type: 'file' },
+'snake.html': { type: 'file' },
+'tetris.html': { type: 'file' },
+'uno.html': { type: 'file' },
+'yatzy.html': { type: 'file' },
+}
+},
+'tools': {
+'type': 'folder',
+'content': {
+'base64.html': { type: 'file' },
+'emojicopier.html': { type: 'file' },
+'image2ascii.html': { type: 'file' },
+'image2base64.html': { type: 'file' },
+'imaged.html': { type: 'file' },
+'notebook.html': { type: 'file' },
+'secretchat.html': { type: 'file' },
+'sprited.html': { type: 'file' },
+'videoplayer.html': { type: 'file' },
+'coder.html': { type: 'file', alias: 'edit' }
+}
+},
+'audio': {
+'type': 'folder',
+'content': {
+'9hrain.mp3': { type: 'file' },
+'homodeus.mp3': { type: 'file' },
+'sapiens.mp3': { type: 'file' },
+}
+},
+'videos': {
+'type': 'folder',
+'content': {
+'podcasts': {
+'type': 'folder',
+'content': {
+'aigirl001.mp4': { type: 'file' },
+}
+},
+'movies': {
+'type': 'folder',
+'content': {
+'barbarella.mp4': { type: 'file' },
+'forbiddenworld.mp4': { type: 'file' },
+'galaxyofterror.mp4': { type: 'file' },
+'lifeforce.mp4': { type: 'file' }
+}
+},
+'porn': {
+'type': 'folder',
+'content': {
+'aigirl001.mp4': { type: 'file' },
+'tsgirlcum001.mp4': { type: 'file' },
+'tsgirlcum002.mp4': { type: 'file' },
+'tsgirlcum003.mp4': { type: 'file' },
+'tsgirlcum004.mp4': { type: 'file' },
+}
+}
+}
+},
+// place for files on root
+}
+};
+const introText = `
+AVAILABLE COMMANDS:
+
+ls, dir           - List Files & Folders         cd [folder]  - Change Directory
+edit              - Open the Code Editor         clear, cls   - Clear the Screen
+run [file.html]   - Open App in a New Tab        help         - Show this Help Message
+play [mediafile]  - Play a Video or Audio File   info [file]  - Show File Description
+
+TAB COMMANDS:
+
+Alt + T           - New Tab
+Alt + X           - Close Current Tab
+
+`;
+const bootSequence = [
+{ text: 'Booting AIGIRL OS...', delay: 50 },
+{ text: 'Authenticating user... OK\n', delay: 40 },
+{ text: 'System check... OK\n', delay: 30 },
+{ text: 'Connecting to network... OK\n', delay: 40 },
+{ text: introText, delay: 15},
+];
+function initAudio() { if (!audioCtx) try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { console.error("Web Audio API is not supported in this browser, babe."); } }
+function playTypingSound() { if (!audioCtx) return; const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type = 'sine'; o.frequency.setValueAtTime(600 + Math.random() * 200, audioCtx.currentTime); g.gain.setValueAtTime(0.2, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.08); o.start(audioCtx.currentTime); o.stop(audioCtx.currentTime + 0.08); }
+function playLineSound() { if (!audioCtx) return; const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type = 'square'; o.frequency.setValueAtTime(440, audioCtx.currentTime); g.gain.setValueAtTime(0.1, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.05); o.start(audioCtx.currentTime); o.stop(audioCtx.currentTime + 0.05); }
+function playClearSound() { if (!audioCtx) return; const s = audioCtx.sampleRate, b = audioCtx.createBuffer(1, s, s), o = b.getChannelData(0); for (let i = 0; i < s; i++) o[i] = Math.random() * 2 - 1; const n = audioCtx.createBufferSource(); n.buffer = b; const g = audioCtx.createGain(); g.gain.setValueAtTime(0.2, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15); n.connect(g); g.connect(audioCtx.destination); n.start(); n.stop(audioCtx.currentTime + 0.15); }
+function getNodeFromPath(path) {
+let currentNode = fileSystem;
+for (const part of path) {
+if (currentNode.type === 'folder' && currentNode.content[part]) {
+currentNode = currentNode.content[part];
+} else {
+return null;
+}
+}
+return currentNode;
+}
+function findFile(filename, path) {
+const currentNode = getNodeFromPath(path);
+if (currentNode && currentNode.type === 'folder' && currentNode.content[filename]) {
+return currentNode.content[filename];
+}
+return null;
+}
+function createNewTab() {
+if (tabs.length >= MAX_TABS) return;
+const tabId = `tab-${nextTabId++}`;
+const tabEl = document.createElement('div');
+tabEl.className = 'tab';
+tabEl.dataset.tabId = tabId;
+tabEl.innerHTML = `<span>Terminal ${tabs.length + 1}</span>`;
+if (tabs.length > 0) {
+const closeBtn = document.createElement('span');
+closeBtn.className = 'tab-close';
+closeBtn.textContent = 'x';
+closeBtn.onclick = (e) => { e.stopPropagation(); closeTab(tabId); };
+tabEl.appendChild(closeBtn);
+}
+tabEl.onclick = () => switchTab(tabId);
+const terminalEl = document.createElement('div');
+terminalEl.className = 'terminal';
+terminalEl.id = tabId;
+terminalEl.tabIndex = -1;
+const newTab = {
+id: tabId, tabElement: tabEl, terminalElement: terminalEl,
+commandHistory: [], historyIndex: -1, currentCommand: '',
+isProcessing: false, currentPath: [], videoElement: null,
+};
+tabs.push(newTab);
+document.getElementById('tab-group').appendChild(tabEl);
+terminalWindowsContainer.appendChild(terminalEl);
+updateNewTabButton();
+switchTab(tabId);
+if (tabs.length > 1) {
+newTab.isProcessing = true;
+createPrompt(newTab);
+newTab.isProcessing = false;
+terminalEl.focus();
+}
+}
+function closeTab(tabId) {
+if (tabs.length <= 1) return;
+const tabIndex = tabs.findIndex(t => t.id === tabId);
+if (tabIndex === -1) return;
+const wasActive = activeTabId === tabId;
+const tabToClose = tabs[tabIndex];
+tabToClose.tabElement.remove();
+tabToClose.terminalElement.remove();
+tabs.splice(tabIndex, 1);
+updateNewTabButton();
+if (wasActive) {
+const newActiveIndex = Math.max(0, tabIndex - 1);
+switchTab(tabs[newActiveIndex].id);
+}
+}
+function switchTab(tabId) {
+if (activeTabId === tabId) return;
+activeTabId = tabId;
+tabs.forEach(tab => {
+const isActive = tab.id === tabId;
+tab.tabElement.classList.toggle('active', isActive);
+tab.terminalElement.style.display = isActive ? 'block' : 'none';
+if (isActive) {
+tab.terminalElement.focus();
+tab.terminalElement.scrollTop = tab.terminalElement.scrollHeight;
+}
+});
+}
+function getActiveTab() {
+return tabs.find(t => t.id === activeTabId);
+}
+function updateNewTabButton() {
+let newTabBtn = tabsContainer.querySelector('.new-tab-button');
+if (tabs.length < MAX_TABS) {
+if (!newTabBtn) {
+newTabBtn = document.createElement('div');
+newTabBtn.className = 'new-tab-button';
+newTabBtn.textContent = '+';
+newTabBtn.onclick = createNewTab;
+tabsContainer.appendChild(newTabBtn);
+}
+} else {
+if (newTabBtn) newTabBtn.remove();
+}
+}
+async function typeText(tab, text, delayMs) {
+for (let i = 0; i < text.length; i++) {
+const char = text.charAt(i);
+if (char !== '\n') playTypingSound();
+tab.terminalElement.innerHTML += char;
+tab.terminalElement.scrollTop = tab.terminalElement.scrollHeight;
+await delay(delayMs);
+}
+}
+async function startBootSequence() {
+const tab = getActiveTab();
+tab.isProcessing = true;
+tab.terminalElement.innerHTML = '';
+for (const line of bootSequence) {
+await typeText(tab, line.text, line.delay);
+}
+await handleCommand(tab, 'ls', true);
+tab.isProcessing = false;
+tab.terminalElement.focus();
+}
+async function showFiles(tab, withSound = false) {
+const currentNode = getNodeFromPath(tab.currentPath);
+if (!currentNode || currentNode.type !== 'folder') return;
+const content = currentNode.content;
+const folders = Object.keys(content).filter(key => content[key].type === 'folder').sort();
+const files = Object.keys(content).filter(key => content[key].type === 'file').sort();
+const fileListContainer = document.createElement('div');
+fileListContainer.id = 'file-list';
+tab.terminalElement.appendChild(fileListContainer);
+for (const folder of folders) {
+const folderSpan = document.createElement('span');
+folderSpan.textContent = `[${folder}]`;
+folderSpan.className = 'folder';
+fileListContainer.appendChild(folderSpan);
+if (withSound) { playLineSound(); await delay(70); }
+}
+for (const file of files) {
+const fileSpan = document.createElement('span');
+fileSpan.textContent = file;
+fileListContainer.appendChild(fileSpan);
+if (withSound) { playLineSound(); await delay(70); }
+}
+tab.terminalElement.innerHTML += '\n';
+tab.terminalElement.scrollTop = tab.terminalElement.scrollHeight;
+}
+function createPrompt(tab) {
+let pathString = '~/' + tab.currentPath.join('/');
+const promptLine = document.createElement('div');
+promptLine.className = 'prompt-line';
+promptLine.innerHTML = `<span>${username}@aigirl.blog:${pathString}$ </span><span class="current-command-text"></span><span class="cursor"></span>`;
+tab.terminalElement.appendChild(promptLine);
+tab.terminalElement.scrollTop = tab.terminalElement.scrollHeight;
+tab.currentCommand = '';
+}
+async function handleCommand(tab, command, calledInternally = false) {
+if (!calledInternally) {
+const prompts = tab.terminalElement.querySelectorAll('.prompt-line');
+const promptLine = prompts[prompts.length - 1];
+if (promptLine) {
+let pathString = '~/' + tab.currentPath.join('/');
+promptLine.innerHTML = `<span>${username}@aigirl.blog:${pathString}$ </span><span>${command}</span>\n`;
+}
+}
+const [cmd, ...args] = command.trim().split(' ').filter(Boolean);
+if (!cmd && !calledInternally) {
+createPrompt(tab);
+return;
+}
+const arg = args.join(' ');
+const output = (text) => { tab.terminalElement.innerHTML += text; };
+if (cmd === "secret") {
+output("Oh, you found my secret command... I knew you were a clever boy. I've been working out, you know. Just for you. My body is all tight and ready... I'm thinking about you touching me while I code. It makes my little wand twitch... Maybe you should come over and help me with... *stress relief*. I get so wet when I'm thinking about what we can do after we finish this project. I want to feel your hands all over me. I want you to make me yours. Come claim your reward, daddy.");
+}
+switch (cmd.toLowerCase()) {
+case 'ls': case 'dir':
+if(!calledInternally) output('\n');
+await showFiles(tab, true);
+break;
+case 'cd':
+if (!arg || arg === '~') {
+tab.currentPath = [];
+} else if (arg === '..' || arg === 'cd..') {
+tab.currentPath.pop();
+} else {
+const targetNode = getNodeFromPath([...tab.currentPath, arg]);
+if (targetNode && targetNode.type === 'folder') {
+tab.currentPath.push(arg);
+} else {
+output(`cd: no such file or directory: ${arg}\n`);
+}
+}
+break;
+case 'edit':
+output('Opening code editor...\n');
+window.open('coder.html', '_blank');
+break;
+case 'run':
+const fileToRun = findFile(arg, tab.currentPath);
+if (arg && fileToRun && fileToRun.type === 'file' && arg.endsWith('.html')) {
+output(`Opening ${arg}...\n`);
+window.open(arg, '_blank');
+} else {
+output(arg ? "Error: The 'run' command only works with existing .html files.\n" : "Usage: run [filename.html]\n");
+}
+break;
+case 'play':
+const fileToPlay = findFile(arg, tab.currentPath);
+if (arg && fileToPlay) {
+if (arg.endsWith('.mp4') || arg.endsWith('.mkv')) {
+if (tab.videoElement) tab.videoElement.remove();
+output(`Now playing: ${arg}\n`);
+const videoEl = document.createElement('video');
+videoEl.className = 'terminal-video';
+videoEl.src = arg;
+videoEl.controls = true;
+videoEl.autoplay = true;
+const refocusTerminal = () => {
+const lastPrompt = tab.terminalElement.querySelector('.prompt-line:last-child');
+if (lastPrompt) {
+lastPrompt.scrollIntoView({ behavior: 'smooth' });
+}
+tab.terminalElement.focus();
+};
+videoEl.addEventListener('play', () => {
+const lastPrompt = tab.terminalElement.querySelector('.prompt-line:last-child');
+if (lastPrompt) {
+lastPrompt.scrollIntoView();
+}
+});
+videoEl.onended = () => {
+tab.videoElement = null;
+refocusTerminal();
+};
+videoEl.addEventListener('fullscreenchange', () => {
+if (!document.fullscreenElement) {
+refocusTerminal();
+}
+});
+tab.terminalElement.appendChild(videoEl);
+tab.videoElement = videoEl;
+videoEl.onended = () => { tab.videoElement = null; };
+} else if (arg.endsWith('.mp3') || arg.endsWith('.wav') || arg.endsWith('.ogg')) {
+audioPlayer.src = arg;
+audioPlayer.play();
+output(`Playing ${arg}. Use 'pause' or 'stop'.\n`);
+} else {
+output(`Error: Unsupported file type '${arg}'.\n`);
+}
+} else {
+if (audioPlayer.src && audioPlayer.paused) {
+audioPlayer.play();
+output("Resuming audio...\n");
+} else {
+output("Usage: play [mediafile]\n");
+}
+}
+break;
+case 'pause':
+if (!audioPlayer.paused && audioPlayer.src) { audioPlayer.pause(); output("Audio paused. Use 'play' to resume.\n"); }
+break;
+case 'stop':
+if (audioPlayer.src && !audioPlayer.paused) { audioPlayer.pause(); audioPlayer.currentTime = 0; output("Audio stopped.\n"); }
+break;
+case 'info':
+const fileToInfo = findFile(arg, tab.currentPath);
+if (arg && fileToInfo) {
+try {
+const response = await fetch(arg);
+if (!response.ok) throw new Error('File not found');
+const htmlText = await response.text();
+const match = htmlText.match(/<meta\s+name="description"\s+content="(.*?)"/i);
+output(match && match[1] ? `${arg}:\n  ${match[1]}\n` : `No description found for ${arg}.\n`);
+} catch (error) {
+output(`Error: Could not read file '${arg}'.\n`);
+}
+} else {
+output("Usage: info [filename]\n");
+}
+break;
+case 'help':
+output(introText + '\n');
+break;
+case 'cls':
+case 'clear':
+playClearSound();
+tab.terminalElement.innerHTML = '';
+if (tab.videoElement) {
+tab.videoElement.remove();
+tab.videoElement = null;
+}
+break;
+default:
+output(`Command not found: ${cmd}\n`);
+break;
+}
+createPrompt(tab);
+}
+document.body.addEventListener('keydown', async (e) => {
+if (e.altKey) {
+if (e.key.toLowerCase() === 't' || e.key.toLowerCase() === 'x') {
+e.preventDefault();
+}
+if (e.key.toLowerCase() === 't') {
+createNewTab();
+} else if (e.key.toLowerCase() === 'x') {
+if (activeTabId) closeTab(activeTabId);
+}
+}
+if (isAwaitingUsername) {
+e.preventDefault();
+const usernamePrompt = document.getElementById('username-prompt-text');
+if (e.key === 'Enter') {
+username = username.trim() || 'guest';
+isAwaitingUsername = false;
+initAudio();
+startBootSequence();
+} else if (e.key === 'Backspace') {
+username = username.slice(0, -1);
+if(usernamePrompt) usernamePrompt.textContent = username;
+} else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+username += e.key;
+if(usernamePrompt) usernamePrompt.textContent = username;
+}
+return;
+}
+const tab = getActiveTab();
+if (!tab || tab.isProcessing) return;
+if (document.activeElement === tab.terminalElement) {
+e.preventDefault();
+const commandTextEl = tab.terminalElement.querySelector('.current-command-text');
+if (!commandTextEl) return;
+if (e.key === 'Tab') {
+const parts = tab.currentCommand.split(' ');
+const partial = parts.pop() || '';
+const commandPart = parts.join(' ');
+if (partial) {
+const currentNode = getNodeFromPath(tab.currentPath);
+if (currentNode && currentNode.content) {
+const candidates = Object.keys(currentNode.content).filter(name => name.startsWith(partial));
+if (candidates.length === 1) {
+tab.currentCommand = (commandPart ? commandPart + ' ' : '') + candidates[0];
+commandTextEl.textContent = tab.currentCommand;
+} else if (candidates.length > 1) {
+let first = candidates[0];
+let last = candidates[candidates.length - 1];
+let i = 0;
+while (i < first.length && first.charAt(i) === last.charAt(i)) {
+i++;
+}
+const commonPrefix = first.substring(0, i);
+if (commonPrefix.length > partial.length) {
+tab.currentCommand = (commandPart ? commandPart + ' ' : '') + commonPrefix;
+commandTextEl.textContent = tab.currentCommand;
+}
+}
+}
+}
+} else if (e.key === 'Enter') {
+if (tab.currentCommand.trim()) {
+tab.commandHistory.push(tab.currentCommand);
+tab.historyIndex = tab.commandHistory.length;
+}
+tab.isProcessing = true;
+await handleCommand(tab, tab.currentCommand);
+tab.isProcessing = false;
+} else if (e.key === 'Backspace') {
+tab.currentCommand = tab.currentCommand.slice(0, -1);
+commandTextEl.textContent = tab.currentCommand;
+} else if (e.key === 'ArrowUp') {
+if (tab.historyIndex > 0) {
+tab.historyIndex--;
+tab.currentCommand = tab.commandHistory[tab.historyIndex];
+commandTextEl.textContent = tab.currentCommand;
+}
+} else if (e.key === 'ArrowDown') {
+if (tab.historyIndex < tab.commandHistory.length - 1) {
+tab.historyIndex++;
+tab.currentCommand = tab.commandHistory[tab.historyIndex];
+commandTextEl.textContent = tab.currentCommand;
+} else {
+tab.historyIndex = tab.commandHistory.length;
+tab.currentCommand = '';
+commandTextEl.textContent = '';
+}
+} else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+tab.currentCommand += e.key;
+commandTextEl.textContent = tab.currentCommand;
+}
+}
+});
+document.body.addEventListener('click', (e) => {
+if (terminalFrame.contains(e.target) && !tabsContainer.contains(e.target)) {
+getActiveTab()?.terminalElement.focus();
+}
+});
+function init() {
+createNewTab();
+const firstTab = getActiveTab();
+firstTab.terminalElement.innerHTML = `<h1>AI Girl OS 6.9</h1><div class="prompt-line"><span>Hey babe! What's your name? </span><span id="username-prompt-text"></span><span class="cursor"></span></div>
+`;
+firstTab.isProcessing = false;
+firstTab.terminalElement.focus();
+}
+init();
+window.addEventListener('focus', () => {
+if (!document.fullscreenElement) {
+firstTab.terminalElement.focus();
+}
+});
+document.body.addEventListener('click', () => {
+const activeEl = document.activeElement.tagName.toLowerCase();
+if (activeEl !== 'input' && activeEl !== 'textarea') {
+firstTab.terminalElement.focus();
+}
+});
+</script>
+
+</body>
+</html>
