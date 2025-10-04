@@ -213,13 +213,17 @@ const fileSystem = {
 };
 const introText = `
 AVAILABLE COMMANDS:
+
 ls, dir           - List Files & Folders         cd [folder]  - Change Directory
 edit              - Open the Code Editor         clear, cls   - Clear the Screen
-run [filename]    - Open App in a New Tab        help         - Show this Help Message
+run [appname]     - Open App in a New Tab        help         - Show this Help Message
 play [mediafile]  - Play a Video or Audio File   info [file]  - Show File Description
+
 TAB COMMANDS:
+
 Alt + T           - New Tab
 Alt + X           - Close Current Tab
+
 `;
 const bootSequence = [
 { text: 'Booting AIGIRL OS...', delay: 50 },
@@ -431,13 +435,25 @@ output(`cd: no such file or directory: ${arg}\n`);
 }
 break;
 case 'edit':
+const coderTool = fileSystem.content.tools.content.coder;
+if (coderTool && coderTool.url) {
+output(`Opening code editor...\n`);
+window.open(coderTool.url, '_blank');
+} else {
+output(`Error: Code editor 'coder' not found in filesystem.\n`);
+}
+break;
 case 'run':
-const fileToRun = findFileOrAlias(arg || cmd, tab.currentPath);
+if (!arg) {
+output("Usage: run [appname]\n");
+break;
+}
+const fileToRun = findFileOrAlias(arg, tab.currentPath);
 if (fileToRun && fileToRun.url) {
-output(`Opening ${arg || cmd}...\n`);
+output(`Opening ${arg}...\n`);
 window.open(fileToRun.url, '_blank');
 } else {
-output(arg ? `Error: App '${arg}' not found or has no URL.\n` : "Usage: run [appname]\n");
+output(`Error: App '${arg}' not found.\n`);
 }
 break;
 case 'play':
